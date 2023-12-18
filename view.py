@@ -58,7 +58,7 @@ class View:
             else:
                 location_window.destroy()
                 # Создаем новый поток
-                threading.Thread(target=self.download_torrent_file, args=(file_path,)).start()
+                threading.Thread(target=self.download_torrent_file, args=(file_path, len(self.torrent_arr))).start()
 
         def show_torrent_info(self, torrent_name, index):
             info_frame = tk.Frame(self)
@@ -69,7 +69,7 @@ class View:
             progress_bar.pack(side=tk.LEFT, padx=5)
             self.torrent_arr[index] = (self.torrent_arr[index][0], self.torrent_arr[index][1], progress_bar)
 
-            download_speed_label = tk.Label(info_frame, text="Download Speed: 0.00 MB/s")
+            download_speed_label = tk.Label(info_frame, text="Скорость: 0.00 MB/s")
             download_speed_label.pack(side=tk.LEFT, padx=5)
             self.torrent_arr[index] = (*self.torrent_arr[index], download_speed_label)
 
@@ -77,17 +77,23 @@ class View:
             downloaded_volume_label.pack(side=tk.LEFT, padx=5)
             self.torrent_arr[index] = (*self.torrent_arr[index], downloaded_volume_label)
 
-        def update_progress_bar(self, index, progress):
+        def update_progress_bar(self, index, progress, current_downloaded, total_size):
             self.torrent_arr[index][2]['value'] = progress
 
-        def download_torrent_file(self, file_path):
+            # Update the downloaded volume label
+            downloaded_volume_label = self.torrent_arr[index][4]
+            downloaded_volume = current_downloaded / 1024 / 1024 / 1024  # in MB
+            downloaded_volume_label.config(text=f"{downloaded_volume:.2f} ГB / {total_size / 1024 / 1024 / 1024:.2f} ГB")
+
+        def download_torrent_file(self, file_path, index):
             try:
                 ses = lt.session()
                 info = lt.torrent_info(file_path)
                 h = ses.add_torrent({"ti": info, "save_path": self.torrent_path})
 
-                index = len(self.torrent_arr)
-                self.torrent_arr.append((ses, h, None, None, 0.0))  # Added a placeholder for downloaded volume
+                total_size = h.status().total_wanted  # Get the total size of the torrent
+
+                self.torrent_arr.append((ses, h, None, None, 0.0, total_size))  # Added a placeholder for downloaded volume and total size
                 mb.showinfo("Успех", f"Торрент-файл {self.torrent_name} успешно загружен.")
 
                 self.show_torrent_info(self.torrent_name, index)
@@ -96,26 +102,30 @@ class View:
                 while not h.is_seed():
                     status = h.status()
                     progress = status.progress * 100
-                    self.update_progress_bar(index, progress)
 
                     current_downloaded = status.total_done
-                    download_speed = (current_downloaded - initial_downloaded) / 1024  # in MB/s
+                    self.update_progress_bar(index, progress, current_downloaded, total_size)
+
+
+                    current_downloaded = status.total_done
+                    download_speed = (current_downloaded - initial_downloaded) / 1024 / 1024  # in MB/s
 
                     # Update the download speed label
                     download_speed_label = self.torrent_arr[index][3]
-                    download_speed_label.config(text=f"Скорость: {download_speed:.2f} MB/s")
+                    download_speed_label.config(text=f"{download_speed:.2f} MB/s")
 
-                    # Update the downloaded volume label
-                    downloaded_volume = current_downloaded / 1024  # in MB
-                    downloaded_volume_label = self.torrent_arr[index][4]
-                    downloaded_volume_label.config(text=f"Сколько осталось: {downloaded_volume:.2f} MB")
 
                     initial_downloaded = current_downloaded
 
                     time.sleep(1)
 
+                # Set download speed to 0 after completion
+                download_speed_label.config(text="Скорость: 0.00 MB/s")
+
             except Exception as e:
                 mb.showerror("Ошибка", f"Произошла ошибка при загрузке торрент-файла: {str(e)}")
+
+
 
 
         def draw_menu(self):
