@@ -1,6 +1,6 @@
 import os
+from tkinter import *
 from tkinter import filedialog
-from torrent_operations import *
 import tkinter as tk
 from tkinter import messagebox as mb
 import libtorrent as lt
@@ -13,36 +13,51 @@ class View:
         def __init__(self, parent):
             super().__init__(parent)
             self.draw_menu()
+
             self.torrent_arr = []
+            #self.torrent_arr[index] = (self.torrent_arr[index][0], self.torrent_arr[index][1], progress_bar)
+            #
+
 
         def show_location_window(self):
             '''
-            Открываем торрент файл и создаем окно для ввода имени файла и расположения
+            Открывает торрент файл и создает окно для ввода имени файла и расположения
             '''
             self.torrent_name, self.torrent_path = None, None
             file_path = filedialog.askopenfilename(filetypes=[("Torrent Files", "*.torrent")])
             if file_path:
                 location_window = tk.Toplevel(self)
+                location_window.geometry("500x200")
                 location_window.title("Location and Name")
                 location_window.attributes("-topmost", True)
 
                 tk.Label(location_window, text="Torrent Name:").pack(side=tk.TOP)
                 self.torrent_name_entry = tk.Entry(location_window)
-                self.torrent_name_entry.pack(side=tk.TOP)
+                self.torrent_name_entry.pack(side=tk.TOP, fill=X, pady=5)
 
                 tk.Label(location_window, text="Torrent Path:").pack(side=tk.TOP)
                 self.torrent_path_entry = tk.Entry(location_window)
-                self.torrent_path_entry.pack(side=tk.TOP)
-                tk.Button(location_window, text="Folders", command=self.ask_directory).pack(side=tk.TOP)
+                self.torrent_path_entry.pack(side=tk.TOP, fill=X, pady=5)
 
-                tk.Button(location_window, text="Save", command=lambda: self.check_errors(location_window, file_path)).pack(side=tk.TOP)
+                tk.Button(location_window, text="Folders", width=15,
+                          command=self.ask_directory).pack(side=tk.TOP)
+                tk.Button(location_window, text="Save", width=15,
+                          command=lambda: self.check_errors(location_window, file_path)).pack(side=tk.TOP)
 
         def ask_directory(self):
+            '''
+            Спрашивает путь который будет иметь наш торрент файл
+            и вводит его в поле ввода
+            '''
             directory = filedialog.askdirectory()
             self.torrent_path_entry.delete(0, tk.END)
             self.torrent_path_entry.insert(0, directory)
 
         def check_errors(self, location_window, file_path):
+            '''
+            Проверяем на корректность ввод данных пользователя
+            и если он хорош удаляем экран и создаем поток для скачивания торрент файла
+            '''
             self.torrent_name = self.torrent_name_entry.get().strip()
             self.torrent_path = self.torrent_path_entry.get()
 
@@ -61,39 +76,63 @@ class View:
                 threading.Thread(target=self.download_torrent_file, args=(file_path, len(self.torrent_arr))).start()
 
         def show_torrent_info(self, torrent_name, index):
-            info_frame = tk.Frame(self)
-            info_frame.pack(side=tk.TOP, pady=5)
+            '''
+            Разметка торрент виджетов
+            '''
 
-            tk.Label(info_frame, text=f"Torrent Name: {torrent_name}", width=15).pack(side=tk.LEFT, padx=5)
-            progress_bar = ttk.Progressbar(info_frame, orient="horizontal", length=200, mode="determinate")
-            progress_bar.pack(side=tk.LEFT, padx=5)
+            info_frame = tk.Frame(self, bg='#e1e1e1')
+            info_frame.pack(side=tk.TOP, pady=5, padx=5, anchor=tk.W, fill=X)
+
+            name_label = tk.Label(info_frame, text=f"{torrent_name}", width=15, anchor=tk.W, bg='#e1e1e1')
+            name_label.pack(side=tk.TOP, padx=5, anchor=tk.W)
+
+            progress_bar = ttk.Progressbar(info_frame, orient="horizontal", mode="determinate")
+            progress_bar.pack(side=tk.TOP, padx=5, anchor=tk.W, fill=BOTH)
             self.torrent_arr[index] = (self.torrent_arr[index][0], self.torrent_arr[index][1], progress_bar)
 
-            download_speed_label = tk.Label(info_frame, text="Скорость: 0.00 MB/s")
-            download_speed_label.pack(side=tk.LEFT, padx=5)
-            self.torrent_arr[index] = (*self.torrent_arr[index], download_speed_label)
+            speed_volume_frame = tk.Frame(info_frame, bg='#e1e1e1')
+            speed_volume_frame.pack(side=tk.TOP, anchor=tk.W, padx=5)
 
-            downloaded_volume_label = tk.Label(info_frame, text="Downloaded Volume: 0.00 MB")
+            download_speed_label = tk.Label(speed_volume_frame, text="", bg='#e1e1e1')
+            download_speed_label.pack(side=tk.LEFT)
+
+            downloaded_volume_label = tk.Label(speed_volume_frame, text="", bg='#e1e1e1')
             downloaded_volume_label.pack(side=tk.LEFT, padx=5)
-            self.torrent_arr[index] = (*self.torrent_arr[index], downloaded_volume_label)
+
+            self.torrent_arr[index] = (*self.torrent_arr[index], download_speed_label, downloaded_volume_label)
+
+            path_button = tk.Button(speed_volume_frame, text="!!!", command=lambda i=index: self.show_torrent_path(i), bg='#e1e1e1')
+            path_button.pack(side=tk.LEFT, padx=5)
+
+        def show_torrent_path(self, index):
+            '''
+            Показывает путь до торрент файла
+            '''
+            torrent_path = self.torrent_arr[index][1].status().save_path
+            mb.showinfo("Торрент-путь", f"Путь к торрент-файлу {self.torrent_arr[index][1].name()}: {torrent_path}")
 
         def update_progress_bar(self, index, progress, current_downloaded, total_size):
+            '''
+            Функция обновляющая прогресбар
+            '''
             self.torrent_arr[index][2]['value'] = progress
 
-            # Update the downloaded volume label
             downloaded_volume_label = self.torrent_arr[index][4]
-            downloaded_volume = current_downloaded / 1024 / 1024 / 1024  # in MB
+            downloaded_volume = current_downloaded / 1024 / 1024 / 1024
             downloaded_volume_label.config(text=f"{downloaded_volume:.2f} ГB / {total_size / 1024 / 1024 / 1024:.2f} ГB")
 
         def download_torrent_file(self, file_path, index):
+            '''
+            Функция отвечающая за скачивание торрент файла
+            '''
             try:
                 ses = lt.session()
                 info = lt.torrent_info(file_path)
-                h = ses.add_torrent({"ti": info, "save_path": self.torrent_path})
+                h = ses.add_torrent({"ti": info, "save_path": os.path.join(self.torrent_path, self.torrent_name)})
 
-                total_size = h.status().total_wanted  # Get the total size of the torrent
+                total_size = h.status().total_wanted
 
-                self.torrent_arr.append((ses, h, None, None, 0.0, total_size))  # Added a placeholder for downloaded volume and total size
+                self.torrent_arr.append((ses, h, None, None, 0.0, total_size))
                 mb.showinfo("Успех", f"Торрент-файл {self.torrent_name} успешно загружен.")
 
                 self.show_torrent_info(self.torrent_name, index)
@@ -106,7 +145,6 @@ class View:
                     current_downloaded = status.total_done
                     self.update_progress_bar(index, progress, current_downloaded, total_size)
 
-
                     current_downloaded = status.total_done
                     download_speed = (current_downloaded - initial_downloaded) / 1024 / 1024  # in MB/s
 
@@ -114,18 +152,14 @@ class View:
                     download_speed_label = self.torrent_arr[index][3]
                     download_speed_label.config(text=f"{download_speed:.2f} MB/s")
 
-
                     initial_downloaded = current_downloaded
 
                     time.sleep(1)
 
-                # Set download speed to 0 after completion
-                download_speed_label.config(text="Скорость: 0.00 MB/s")
+                download_speed_label.config(text="0.00 MB/s")
 
             except Exception as e:
                 mb.showerror("Ошибка", f"Произошла ошибка при загрузке торрент-файла: {str(e)}")
-
-
 
 
         def draw_menu(self):
@@ -140,7 +174,10 @@ class View:
             file_menu.add_command(label="Выйти", command=self.exit)
 
             info_menu = tk.Menu(menu_bar, tearoff=0)
-            info_menu.add_command(label="О приложении", command=self.show_info)
+            info_menu.add_command(label="загруженные", command=self.show_info1)
+            info_menu.add_command(label="все", command=self.show_info1)
+            info_menu.add_command(label="загружаются", command=self.show_info2)
+
 
             menu_bar.add_cascade(label="Файл", menu=file_menu)
             menu_bar.add_cascade(label="Справка", menu=info_menu)
@@ -162,11 +199,49 @@ class View:
 
                 self.master.destroy()
 
-        def show_info(self):
+
+
+        def show_info1(self):
             '''
-            Выводит информацию после нажатии на кнопку "Справка"
+            все
             '''
-            mb.showinfo("Информация", "Любительский торрент клиент")
+            # Удаление всех виджетов
+            self.clear_screen()
+
+            # Отображение всех элементов torrent_arr
+            for index, torrent_info in enumerate(self.torrent_arr):
+                self.show_torrent_info(torrent_info[0], index)
+
+
+        def show_info1(self):
+            '''
+            все
+            '''
+            # Удаление всех виджетов
+            self.clear_screen()
+
+            # Отображение всех элементов torrent_arr
+            for index, torrent_info in enumerate(self.torrent_arr):
+                self.show_torrent_info(torrent_info[1].name(), index)
+
+        def show_info2(self):
+            '''
+            загружаются
+            '''
+            # Удаление всех виджетов
+            self.clear_screen()
+
+            # Отображение только тех элементов torrent_arr, у которых torrent_arr[i][4] != 0.0
+            for index, torrent_info in enumerate(self.torrent_arr):
+                if torrent_info[4] != 0.0:
+                    self.show_torrent_info(torrent_info[1].name(), index)
+
+        def clear_screen(self):
+            '''
+            Очищает экран от виджетов
+            '''
+            for widget in self.winfo_children():
+                widget.destroy()
 
 
 
@@ -190,25 +265,18 @@ class View:
 
             icons_list = [ico1, ico2, ico3, ico4, ico5]
 
-            # for icon in icons_list:
-            # Label(ICONSframe, bg=self.colors[0],
-            # image=icon).pack(anchor=W, fill=X, pady=7.5)
-
         def put_left_btns(self):
-            for i in range(5):
-                btn_text = ['Все                 ', 'Загружаются  ', 'Раздаются      ', 'Завершены    ',
-                            'С ошибкой     ']
+            btn_text = ['Все                 ', 'Загружаются  ', 'Раздаются      ', 'Завершены    ', 'С ошибкой     ']
 
+            for i in range(5):
                 btn = tk.Button(self, activeforeground='#1f1f1f', activebackground=self['bg'],
                                 relief=tk.FLAT, text=btn_text[i], fg='#1f1f1f', font=self.text_font,
-                                bg=self['bg'])
+                                bg=self['bg'], command=lambda i=i: self.show_torrents(i))
                 btn.pack(anchor=W, fill=X, padx=5)
-
         def put_widgets(self):
-            Label(self, text="Статус", background=self['bg'], fg="black", font=("Segoe UI", 12)).pack(
+
+            tk.Label(self, text="Статус", background=self['bg'], fg="black", font=("Segoe UI", 12)).pack(
                 anchor=N, fill=BOTH, pady=10)
 
             self.icons()
             self.put_left_btns()
-
-

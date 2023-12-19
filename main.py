@@ -10,7 +10,6 @@ class TorrentClient(tk.Tk):
         self.geometry("700x500")
 
         self['bg'] = '#E0E0E0'
-        self.text_font = ("Segoe UI", 10)
 
         self.put_main_frames()
         self.protocol("WM_DELETE_WINDOW", self.on_window_close)
